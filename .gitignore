@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# 환경변수
+.env
+
+# Firebase
+mflow_admin.json
+*-firebase-adminsdk-*.json
+
+# 데이터베이스
+*.db
+licenses.db
+
+# 설정 파일
+settings.json
+
+# Excel 파일
+licenses_*.xlsx
+
+# 로그
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 테스트 데이터
+test_data_info.txt
