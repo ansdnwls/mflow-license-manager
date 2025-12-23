@@ -47,14 +47,59 @@ def init_firebase():
     try:
         if not firebase_admin._apps:
             # Streamlit Cloud용: secrets에서 Firebase 인증 정보 직접 로드
-            if hasattr(st, 'secrets') and "firebase" in st.secrets:
-                firebase_config = dict(st.secrets["firebase"])
-                cred = credentials.Certificate(firebase_config)
-            else:
+            try:
+                # st.secrets가 있는지 확인
+                if hasattr(st, 'secrets'):
+                    # secrets를 dict로 변환하여 확인
+                    try:
+                        secrets_dict = dict(st.secrets)
+                        available_keys = list(secrets_dict.keys())
+                        
+                        # firebase 섹션이 있는지 확인
+                        if "firebase" in secrets_dict:
+                            firebase_config = dict(st.secrets["firebase"])
+                            # 필수 필드 확인
+                            required_fields = ["type", "project_id", "private_key", "client_email"]
+                            missing_fields = [f for f in required_fields if f not in firebase_config]
+                            
+                            if missing_fields:
+                                st.error(f"❌ Firebase Secrets에 필수 필드 누락: {', '.join(missing_fields)}")
+                                return None
+                            
+                            cred = credentials.Certificate(firebase_config)
+                        else:
+                            # firebase 섹션이 없음 - 디버깅 정보 표시
+                            st.warning(f"⚠️ Secrets에 'firebase' 섹션이 없습니다.")
+                            st.caption(f"사용 가능한 Secrets 키: {available_keys}")
+                            raise KeyError("firebase section not found in secrets")
+                    except Exception as secrets_error:
+                        # secrets 읽기 오류
+                        st.warning(f"⚠️ Secrets 읽기 오류: {secrets_error}")
+                        raise
+                else:
+                    # st.secrets가 없음
+                    raise AttributeError("st.secrets not available")
+            except (KeyError, AttributeError) as e:
                 # 로컬 개발용: 파일에서 로드
                 firebase_credentials_path = get_secret("FIREBASE_CREDENTIALS_PATH", "mflow_admin.json")
                 if not os.path.exists(firebase_credentials_path):
-                    st.error(f"Firebase 인증 파일을 찾을 수 없습니다: {firebase_credentials_path}")
+                    st.error(f"❌ Firebase 인증 파일을 찾을 수 없습니다: {firebase_credentials_path}")
+                    st.warning("""
+                    **Streamlit Cloud 배포 시:**
+                    
+                    Firebase 인증 정보를 Secrets에 추가해야 합니다.
+                    
+                    1. Streamlit Cloud → Settings → Secrets
+                    2. `[firebase]` 섹션이 있는지 확인
+                    3. 모든 필드가 올바르게 입력되었는지 확인
+                    4. 앱 재시작 (Reboot app)
+                    
+                    **디버깅 정보:**
+                    - st.secrets 존재: """ + str(hasattr(st, 'secrets')) + """
+                    - 사용 가능한 Secrets 키: """ + (str(list(st.secrets.keys())) if hasattr(st, 'secrets') else "N/A") + """
+                    
+                    **중요:** Secrets를 저장한 후 반드시 앱을 재시작하세요! (Reboot app)
+                    """)
                     return None
                 cred = credentials.Certificate(firebase_credentials_path)
             
@@ -64,7 +109,23 @@ def init_firebase():
         st.success("✅ Firebase 연결 성공")
         return db
     except Exception as e:
-        st.error(f"⚠️ Firebase 초기화 실패: {e}")
+        error_msg = str(e)
+        st.error(f"⚠️ Firebase 초기화 실패: {error_msg}")
+        
+        # 상세한 에러 정보 표시
+        if "firebase" in error_msg.lower() or "certificate" in error_msg.lower():
+            st.info("""
+            **가능한 원인:**
+            1. Secrets의 `[firebase]` 섹션 형식 오류
+            2. `private_key`에 `\\n`이 올바르게 포함되지 않음
+            3. 필수 필드 누락
+            
+            **해결 방법:**
+            - `SECRETS_SETUP.md` 파일 참고
+            - Secrets 페이지에서 형식 재확인
+            - 앱 재시작
+            """)
+        
         return None
 
 # Secrets에서 설정값 가져오기
@@ -76,6 +137,11 @@ SMTP_PORT = int(get_secret("SMTP_PORT", "465"))
 # 관리자 계정 설정
 ADMIN_USERNAME = get_secret("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD_HASH = get_secret("ADMIN_PASSWORD_HASH", "")
+
+# 디버깅: Secrets 읽기 확인 (개발용 - 운영 시 제거 가능)
+if not ADMIN_PASSWORD_HASH:
+    # Secrets에서 읽지 못한 경우 기본값 사용
+    pass
 
 # 비밀번호 해싱 함수
 def hash_password(password: str) -> str:
@@ -176,7 +242,13 @@ def show_login_page():
         # 안내 메시지
         st.markdown("---")
         st.caption("🔒 보안을 위해 환경변수에서 관리자 계정을 설정하세요.")
-        st.caption("💡 기본 계정: admin / admin123 (변경 권장)")
+        
+        # 디버깅 정보 (개발용)
+        if not ADMIN_PASSWORD_HASH:
+            st.warning("⚠️ Secrets에 ADMIN_PASSWORD_HASH가 설정되지 않았습니다. 기본 비밀번호(admin123)를 사용합니다.")
+            st.caption("💡 Streamlit Cloud → Settings → Secrets에 ADMIN_PASSWORD_HASH를 추가하세요.")
+        else:
+            st.caption("✅ 관리자 비밀번호가 Secrets에서 로드되었습니다.")
 
 # 로그아웃 함수
 def logout():
