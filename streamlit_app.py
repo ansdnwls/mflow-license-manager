@@ -163,11 +163,26 @@ def init_firebase():
 SMTP_EMAIL = get_secret("SMTP_EMAIL")
 SMTP_PASSWORD = get_secret("SMTP_PASSWORD")
 SMTP_SERVER = get_secret("SMTP_SERVER", "smtp.gmail.com")
-SMTP_PORT = int(get_secret("SMTP_PORT", "465"))
 
-# 관리자 계정 설정
-ADMIN_USERNAME = get_secret("ADMIN_USERNAME", "admin")
-ADMIN_PASSWORD_HASH = get_secret("ADMIN_PASSWORD_HASH", "")
+# SMTP_PORT 처리 (문자열일 수 있음)
+smtp_port_str = get_secret("SMTP_PORT", "465")
+try:
+    SMTP_PORT = int(smtp_port_str)
+except:
+    SMTP_PORT = 465
+
+# 관리자 계정 설정 - 직접 st.secrets 접근 시도
+try:
+    if hasattr(st, 'secrets'):
+        # 직접 접근 시도
+        ADMIN_USERNAME = st.secrets.get("ADMIN_USERNAME", "admin")
+        ADMIN_PASSWORD_HASH = st.secrets.get("ADMIN_PASSWORD_HASH", "")
+    else:
+        ADMIN_USERNAME = get_secret("ADMIN_USERNAME", "admin")
+        ADMIN_PASSWORD_HASH = get_secret("ADMIN_PASSWORD_HASH", "")
+except:
+    ADMIN_USERNAME = get_secret("ADMIN_USERNAME", "admin")
+    ADMIN_PASSWORD_HASH = get_secret("ADMIN_PASSWORD_HASH", "")
 
 # 디버깅: Secrets 읽기 확인
 # 로그인 페이지에서만 표시되도록 조건부 처리
