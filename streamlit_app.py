@@ -169,10 +169,8 @@ SMTP_PORT = int(get_secret("SMTP_PORT", "465"))
 ADMIN_USERNAME = get_secret("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD_HASH = get_secret("ADMIN_PASSWORD_HASH", "")
 
-# 디버깅: Secrets 읽기 확인 (개발용 - 운영 시 제거 가능)
-if not ADMIN_PASSWORD_HASH:
-    # Secrets에서 읽지 못한 경우 기본값 사용
-    pass
+# 디버깅: Secrets 읽기 확인
+# 로그인 페이지에서만 표시되도록 조건부 처리
 
 # 비밀번호 해싱 함수
 def hash_password(password: str) -> str:
@@ -275,28 +273,40 @@ def show_login_page():
         st.caption("🔒 보안을 위해 환경변수에서 관리자 계정을 설정하세요.")
         
         # 디버깅 정보 (개발용)
-        if not ADMIN_PASSWORD_HASH:
-            st.warning("⚠️ Secrets에 ADMIN_PASSWORD_HASH가 설정되지 않았습니다. 기본 비밀번호(admin123)를 사용합니다.")
-            
-            # 디버깅: 사용 가능한 Secrets 키 표시
-            try:
-                if hasattr(st, 'secrets'):
-                    secrets_dict = dict(st.secrets)
-                    available_keys = list(secrets_dict.keys())
+        # Secrets 읽기 상태 확인
+        try:
+            if hasattr(st, 'secrets'):
+                secrets_dict = dict(st.secrets)
+                available_keys = list(secrets_dict.keys())
+                
+                # ADMIN 관련 키 직접 확인
+                admin_username_in_secrets = "ADMIN_USERNAME" in secrets_dict
+                admin_hash_in_secrets = "ADMIN_PASSWORD_HASH" in secrets_dict
+                
+                if not ADMIN_PASSWORD_HASH:
+                    st.warning("⚠️ Secrets에 ADMIN_PASSWORD_HASH가 설정되지 않았습니다. 기본 비밀번호(admin123)를 사용합니다.")
                     st.caption(f"🔍 사용 가능한 Secrets 키: {available_keys}")
                     
-                    # ADMIN 관련 키 확인
-                    admin_keys = [k for k in available_keys if 'ADMIN' in k.upper() or 'admin' in k.lower()]
-                    if admin_keys:
-                        st.caption(f"📋 ADMIN 관련 키: {admin_keys}")
-            except:
-                pass
-            
-            st.caption("💡 Streamlit Cloud → Settings → Secrets에 다음을 추가하세요:")
-            st.code("ADMIN_USERNAME = \"admin\"\nADMIN_PASSWORD_HASH = \"your-password-hash\"", language="toml")
-        else:
-            st.caption("✅ 관리자 비밀번호가 Secrets에서 로드되었습니다.")
-            st.caption(f"👤 사용자명: {ADMIN_USERNAME}")
+                    if admin_username_in_secrets:
+                        st.caption(f"📋 ADMIN_USERNAME 값: {secrets_dict.get('ADMIN_USERNAME', 'N/A')}")
+                    else:
+                        st.caption("❌ ADMIN_USERNAME이 Secrets에 없습니다.")
+                    
+                    if admin_hash_in_secrets:
+                        hash_value = secrets_dict.get('ADMIN_PASSWORD_HASH', '')
+                        st.caption(f"📋 ADMIN_PASSWORD_HASH 값: {hash_value[:20]}... (길이: {len(hash_value)})")
+                    else:
+                        st.caption("❌ ADMIN_PASSWORD_HASH가 Secrets에 없습니다.")
+                    
+                    st.caption("💡 Streamlit Cloud → Settings → Secrets에 다음을 추가하세요:")
+                    st.code("""ADMIN_USERNAME = "mflow"
+ADMIN_PASSWORD_HASH = "81357f5fd1259e8b241099bb45b17363102692bcbe99dfe340e8c137374d8f65\"""", language="toml")
+                else:
+                    st.caption("✅ 관리자 비밀번호가 Secrets에서 로드되었습니다.")
+                    st.caption(f"👤 사용자명: {ADMIN_USERNAME}")
+                    st.caption(f"🔑 해시값: {ADMIN_PASSWORD_HASH[:20]}...")
+        except Exception as e:
+            st.caption(f"⚠️ 디버깅 오류: {e}")
 
 # 로그아웃 함수
 def logout():
