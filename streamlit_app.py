@@ -17,15 +17,46 @@ load_dotenv()
 # Streamlit secrets 사용 (배포용, 로컬에서도 사용 가능)
 def get_secret(key, default=""):
     """Streamlit secrets 또는 환경변수에서 값 가져오기"""
+    # 1순위: Streamlit secrets
     try:
-        # 1순위: Streamlit secrets
-        if hasattr(st, 'secrets') and key in st.secrets:
-            return st.secrets[key]
-    except:
+        if hasattr(st, 'secrets'):
+            # secrets 객체 직접 접근 시도
+            try:
+                value = st.secrets[key]
+                if value is not None:
+                    value_str = str(value).strip()
+                    if value_str:
+                        return value_str
+            except KeyError:
+                # 키가 없으면 다음 단계로
+                pass
+            except Exception:
+                # 기타 오류는 무시
+                pass
+            
+            # dict로 변환하여 재시도
+            try:
+                secrets_dict = dict(st.secrets)
+                if key in secrets_dict:
+                    value = secrets_dict[key]
+                    if value is not None:
+                        value_str = str(value).strip()
+                        if value_str:
+                            return value_str
+            except Exception:
+                pass
+    except Exception:
         pass
     
     # 2순위: 환경변수 (.env)
-    return os.getenv(key, default)
+    try:
+        env_value = os.getenv(key)
+        if env_value:
+            return env_value
+    except:
+        pass
+    
+    return default
 
 # 페이지 설정 (모바일 최적화)
 st.set_page_config(
@@ -246,9 +277,26 @@ def show_login_page():
         # 디버깅 정보 (개발용)
         if not ADMIN_PASSWORD_HASH:
             st.warning("⚠️ Secrets에 ADMIN_PASSWORD_HASH가 설정되지 않았습니다. 기본 비밀번호(admin123)를 사용합니다.")
-            st.caption("💡 Streamlit Cloud → Settings → Secrets에 ADMIN_PASSWORD_HASH를 추가하세요.")
+            
+            # 디버깅: 사용 가능한 Secrets 키 표시
+            try:
+                if hasattr(st, 'secrets'):
+                    secrets_dict = dict(st.secrets)
+                    available_keys = list(secrets_dict.keys())
+                    st.caption(f"🔍 사용 가능한 Secrets 키: {available_keys}")
+                    
+                    # ADMIN 관련 키 확인
+                    admin_keys = [k for k in available_keys if 'ADMIN' in k.upper() or 'admin' in k.lower()]
+                    if admin_keys:
+                        st.caption(f"📋 ADMIN 관련 키: {admin_keys}")
+            except:
+                pass
+            
+            st.caption("💡 Streamlit Cloud → Settings → Secrets에 다음을 추가하세요:")
+            st.code("ADMIN_USERNAME = \"admin\"\nADMIN_PASSWORD_HASH = \"your-password-hash\"", language="toml")
         else:
             st.caption("✅ 관리자 비밀번호가 Secrets에서 로드되었습니다.")
+            st.caption(f"👤 사용자명: {ADMIN_USERNAME}")
 
 # 로그아웃 함수
 def logout():
