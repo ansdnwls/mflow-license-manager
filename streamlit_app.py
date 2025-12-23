@@ -159,30 +159,49 @@ def init_firebase():
         
         return None
 
-# Secrets에서 설정값 가져오기
+# Secrets에서 설정값 가져오기 (강제 새로고침)
+def get_admin_secrets():
+    """관리자 Secrets 강제 읽기"""
+    try:
+        # st.secrets를 직접 읽기 (캐시 우회)
+        if hasattr(st, 'secrets') and st.secrets is not None:
+            # TOML 파일에서 직접 읽기
+            username = None
+            password_hash = None
+            
+            # 다양한 방법으로 시도
+            try:
+                username = st.secrets["ADMIN_USERNAME"]
+            except:
+                pass
+            
+            try:
+                password_hash = st.secrets["ADMIN_PASSWORD_HASH"]
+            except:
+                pass
+            
+            # 값이 있으면 반환
+            if username and password_hash:
+                return str(username), str(password_hash)
+    except Exception as e:
+        pass
+    
+    # 환경변수 폴백
+    return get_secret("ADMIN_USERNAME", "admin"), get_secret("ADMIN_PASSWORD_HASH", "")
+
 SMTP_EMAIL = get_secret("SMTP_EMAIL")
 SMTP_PASSWORD = get_secret("SMTP_PASSWORD")
 SMTP_SERVER = get_secret("SMTP_SERVER", "smtp.gmail.com")
 
-# SMTP_PORT 처리 (문자열일 수 있음)
+# SMTP_PORT 처리
 smtp_port_str = get_secret("SMTP_PORT", "465")
 try:
     SMTP_PORT = int(smtp_port_str)
 except:
     SMTP_PORT = 465
 
-# 관리자 계정 설정 - 직접 st.secrets 접근 시도
-try:
-    if hasattr(st, 'secrets'):
-        # 직접 접근 시도
-        ADMIN_USERNAME = st.secrets.get("ADMIN_USERNAME", "admin")
-        ADMIN_PASSWORD_HASH = st.secrets.get("ADMIN_PASSWORD_HASH", "")
-    else:
-        ADMIN_USERNAME = get_secret("ADMIN_USERNAME", "admin")
-        ADMIN_PASSWORD_HASH = get_secret("ADMIN_PASSWORD_HASH", "")
-except:
-    ADMIN_USERNAME = get_secret("ADMIN_USERNAME", "admin")
-    ADMIN_PASSWORD_HASH = get_secret("ADMIN_PASSWORD_HASH", "")
+# 관리자 계정 설정 - 강제 새로고침
+ADMIN_USERNAME, ADMIN_PASSWORD_HASH = get_admin_secrets()
 
 # 디버깅: Secrets 읽기 확인
 # 로그인 페이지에서만 표시되도록 조건부 처리
@@ -291,12 +310,29 @@ def show_login_page():
         # Secrets 읽기 상태 확인
         try:
             if hasattr(st, 'secrets'):
-                secrets_dict = dict(st.secrets)
-                available_keys = list(secrets_dict.keys())
+                # 강제로 모든 키 읽기
+                all_keys = []
+                try:
+                    # 최상위 키들
+                    for key in dir(st.secrets):
+                        if not key.startswith('_'):
+                            all_keys.append(key)
+                except:
+                    pass
+                
+                # dict 변환 시도
+                try:
+                    secrets_dict = dict(st.secrets)
+                    all_keys.extend(list(secrets_dict.keys()))
+                except:
+                    pass
+                
+                # 중복 제거
+                available_keys = sorted(list(set(all_keys)))
                 
                 # ADMIN 관련 키 직접 확인
-                admin_username_in_secrets = "ADMIN_USERNAME" in secrets_dict
-                admin_hash_in_secrets = "ADMIN_PASSWORD_HASH" in secrets_dict
+                admin_username_in_secrets = "ADMIN_USERNAME" in available_keys
+                admin_hash_in_secrets = "ADMIN_PASSWORD_HASH" in available_keys
                 
                 if not ADMIN_PASSWORD_HASH:
                     st.warning("⚠️ Secrets에 ADMIN_PASSWORD_HASH가 설정되지 않았습니다. 기본 비밀번호(admin123)를 사용합니다.")
